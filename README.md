@@ -2,12 +2,35 @@
 
 Pruebas de carga distribuidas con [grafana/k6-operator](https://github.com/grafana/k6-operator). El script de k6 modela una rampa hasta **300 VU** y el operator divide esa carga entre los pods runner que se le indiquen via `parallelism`.
 
-## Modelo de despliegue
+## Modelo de despliegue (App-of-Apps)
 
 | Componente | Como se gestiona |
 |---|---|
-| **k6-operator** (controller, CRDs, RBAC) | **GitOps** — ArgoCD `Application` apunta al chart `grafana/k6-operator`. Auto-sync + self-heal. |
+| **Root Application** (`k6-operator-root`) | Bootstrap manual UNA SOLA VEZ via `kubectl apply` (o `make.ps1 install-operator`). Apunta a `argocd/applications/` de este repo. |
+| **k6-operator** (controller, CRDs, RBAC) | Gestionado por la root. ArgoCD lee `argocd/applications/k6-operator.yaml` desde Git e instala el chart `grafana/k6-operator`. Auto-sync + self-heal. |
 | **TestRun + ConfigMap del script** | **Imperativo a demanda** — `make.ps1 run` los crea cuando querés correr una prueba. No los gestiona ArgoCD (deliberado: el TestRun es ruidoso para GitOps porque muta de estado y se borra al terminar). |
+
+```
+                          ┌────────────────────────────────────┐
+                          │   GitHub: Juancastro14/k6_operator │
+                          │   argocd/applications/             │
+                          └─────────────┬──────────────────────┘
+                                        │ syncs
+                          ┌─────────────▼──────────────┐
+   kubectl apply once --> │  Application: root         │
+                          │  (in-cluster, namespace    │
+                          │   argocd)                  │
+                          └─────────────┬──────────────┘
+                                        │ creates / manages
+                          ┌─────────────▼──────────────┐
+                          │  Application: k6-operator  │
+                          │  (Helm: grafana/k6-operator)│
+                          └─────────────┬──────────────┘
+                                        │ deploys
+                          ┌─────────────▼──────────────┐
+                          │  k6-operator-system / ...  │
+                          └────────────────────────────┘
+```
 
 ## Estructura
 
@@ -15,7 +38,8 @@ Pruebas de carga distribuidas con [grafana/k6-operator](https://github.com/grafa
 k6_operator/
 ├── make.ps1                                 # entrypoint imperativo (run, logs, clean, install-operator)
 ├── argocd/
-│   └── applications/
+│   ├── root-application.yaml                # ← root: bootstrap manual una vez
+│   └── applications/                        # ← gestionado por la root, sincronizado desde Git
 │       └── k6-operator.yaml                 # ArgoCD Application (chart Helm v4.4.1)
 ├── manifests/
 │   ├── namespace.yaml                       # namespace por defecto (k6-load-tests, no usado en argo)
@@ -53,9 +77,12 @@ k6_operator/
 ```
 
 `install-operator`:
-- Aplica [argocd/applications/k6-operator.yaml](argocd/applications/k6-operator.yaml) en el namespace de ArgoCD.
-- Espera `Synced` + `Healthy`.
-- A partir de ahí ArgoCD se encarga (auto-sync, self-heal). La Application aparece en la UI.
+- Aplica la **root Application** [argocd/root-application.yaml](argocd/root-application.yaml).
+- La root sincroniza el folder `argocd/applications/` desde GitHub y crea la `Application` `k6-operator`.
+- Espera a que la root quede `Synced` + `Healthy` (lo cual implica que el child y el chart desplegaron).
+- En ArgoCD UI vas a ver dos Applications: `k6-operator-root` y `k6-operator`.
+
+Para futuros operators / CRDs / extensiones, basta con agregar un nuevo YAML a `argocd/applications/`, commitear, pushear: la root lo descubre automaticamente.
 
 ## Parametrizacion del TestRun
 

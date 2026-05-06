@@ -27,26 +27,28 @@ function Assert-Success($message) {
 function Install-Operator {
     Test-Kubectl
 
-    $appPath = Join-Path $root 'argocd\applications\k6-operator.yaml'
-    Write-Host "Aplicando ArgoCD Application desde $appPath ..."
-    kubectl apply -f $appPath
-    Assert-Success "Fallo aplicando la Application."
+    $rootPath = Join-Path $root 'argocd\root-application.yaml'
+    Write-Host "Aplicando App-of-Apps root desde $rootPath ..."
+    kubectl apply -f $rootPath
+    Assert-Success "Fallo aplicando la root Application."
 
-    Write-Host "Esperando que ArgoCD sincronice (Synced + Healthy)..."
-    kubectl -n $ArgoNs wait --for=jsonpath='{.status.sync.status}'=Synced application/k6-operator --timeout=5m
-    Assert-Success "Timeout esperando estado Synced."
-    kubectl -n $ArgoNs wait --for=jsonpath='{.status.health.status}'=Healthy application/k6-operator --timeout=5m
-    Assert-Success "Timeout esperando estado Healthy."
+    Write-Host "Esperando que la root sincronice y propague el operator (Synced + Healthy)..."
+    kubectl -n $ArgoNs wait --for=jsonpath='{.status.sync.status}'=Synced application/k6-operator-root --timeout=5m
+    Assert-Success "Timeout esperando 'Synced' en root."
+    kubectl -n $ArgoNs wait --for=jsonpath='{.status.health.status}'=Healthy application/k6-operator-root --timeout=10m
+    Assert-Success "Timeout esperando 'Healthy' en root (esto incluye al child k6-operator)."
 
-    Write-Host "Operator gestionado por ArgoCD: Application 'k6-operator' Synced + Healthy."
+    Write-Host ""
+    Write-Host "Bootstrap completo. Estado actual en ArgoCD:"
+    kubectl -n $ArgoNs get applications
 }
 
 function Uninstall-Operator {
     Test-Kubectl
-    $appPath = Join-Path $root 'argocd\applications\k6-operator.yaml'
-    Write-Host "Borrando ArgoCD Application..."
-    kubectl delete -f $appPath --ignore-not-found
-    Write-Host "El finalizer hara que ArgoCD borre los recursos asociados en cascada."
+    $rootPath = Join-Path $root 'argocd\root-application.yaml'
+    Write-Host "Borrando root Application..."
+    kubectl delete -f $rootPath --ignore-not-found
+    Write-Host "El finalizer borra en cascada las child Applications y todos sus recursos."
     Write-Host "Nota: los CRDs (testruns.k6.io, etc.) no se borran automaticamente."
     Write-Host "Para removerlos: kubectl delete crd testruns.k6.io testjobs.k6.io privateloadzones.k6.io"
 }

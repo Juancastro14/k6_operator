@@ -1,0 +1,27 @@
+# App-of-Apps root.
+# Aplicar UNA SOLA VEZ con: kubectl apply -f argocd/root-application.yaml
+# A partir de ahi, ArgoCD descubre y sincroniza todo lo que aparezca en argocd/applications/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k6-operator-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Juancastro14/k6_operator.git
+    targetRevision: main
+    path: argocd/applications
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k6-tests-rbac
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Juancastro14/k6_operator.git
+    targetRevision: main
+    path: argocd/manifests/k6-tests-rbac
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: compute-resources-area-calidad-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

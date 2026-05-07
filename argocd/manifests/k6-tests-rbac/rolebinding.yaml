@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k6-test-runner
+  namespace: compute-resources-area-calidad-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: k6-test-runner
+subjects:
+  - kind: ServiceAccount
+    name: k6-test-runner
+    namespace: compute-resources-area-calidad-dev

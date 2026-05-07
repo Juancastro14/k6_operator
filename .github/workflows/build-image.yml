@@ -13,7 +13,9 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/k6-influxdb
+  # GHCR requires lowercase owner; ${{ github.repository_owner }} is "Juancastro14"
+  # with capitals, which GHCR rejects. Hardcode lowercase here.
+  IMAGE: ghcr.io/juancastro14/k6-influxdb
 
 jobs:
   build:
